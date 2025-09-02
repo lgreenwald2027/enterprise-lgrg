@@ -3,16 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TikTok‑style Vertical Feed (MVP)</title>
+  <title>TikTok‑style Vertical Feed (MVP) + Accounts</title>
   <style>
-    /* --- Layout --- */
     html, body { height: 100%; margin: 0; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; background:#000; color:#fff; overflow: hidden; }
+
+    /* Feed */
     .feed { height: 100vh; width: 100vw; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; }
     .reel { position: relative; height: 100vh; width: 100%; scroll-snap-align: start; display: grid; place-items: center; background:#000; }
     .reel video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
-    /* --- Overlays --- */
+    /* Overlays */
     .overlay { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr auto; align-items: end; padding: 18px; pointer-events: none; }
     .left { max-width: min(60ch, 70vw); text-shadow: 0 1px 10px rgba(0,0,0,.6); }
     .username { font-weight: 800; margin: 0 0 6px 0; }
@@ -24,51 +25,132 @@
     .btn.round { border-radius: 999px; }
     .count { font-size: 12px; opacity: .85; }
 
-    /* --- Top bar (For You only) --- */
+    /* Top bar */
     .topbar { position: fixed; top: 0; inset-inline: 0; height: 56px; display: flex; align-items: center; justify-content: center; z-index: 10; }
     .seg { padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.2); background:#fff; color:#000; font-weight: 800; }
+    .auth { position: fixed; top: 10px; right: 10px; z-index: 11; display: flex; gap: 8px; }
+    .chip { background: rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); padding:8px 10px; border-radius:999px; }
 
-    /* --- Hints --- */
+    /* Hint */
     .hint { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #ddd; opacity: .7; }
 
-    /* --- Mute pill --- */
+    /* Mute pill */
     .mute-pill { position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.25); border-radius: 999px; padding: 6px 10px; pointer-events: auto; cursor: pointer; font-weight: 700; }
 
-    /* --- Loading shimmer for first paint --- */
+    /* Loading shimmer */
     .shimmer { position:absolute; inset:0; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.08), rgba(255,255,255,0)); background-size: 200% 100%; animation: shine 1.2s linear infinite; }
     @keyframes shine { from { background-position: -200% 0; } to { background-position: 200% 0; } }
 
-    @media (max-width: 420px) { .left { max-width: 90vw; } }
+    /* Auth modal */
+    dialog { border:1px solid rgba(255,255,255,.2); border-radius:16px; background:#0b0b0b; color:#fff; padding:0; width:min(420px, 92vw); }
+    dialog::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
+    .modal-head { padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.15); display:flex; align-items:center; justify-content:space-between; }
+    .modal-body { padding:16px; display:grid; gap:12px; }
+    .field { display:grid; gap:6px; }
+    label { font-size:14px; opacity:.85 }
+    input { padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.2); background:#121212; color:#fff; }
+    .row { display:flex; gap:10px; align-items:center; justify-content:space-between; }
+    .link { color:#77c1ff; cursor:pointer; text-decoration:underline; }
+    .primary { background:#fff; color:#000; border-color:transparent; }
   </style>
 </head>
 <body>
   <div class="topbar" aria-hidden="true"><span class="seg">For You</span></div>
+  <div class="auth">
+    <span id="userChip" class="chip" hidden></span>
+    <button id="loginBtn" class="btn">Log in</button>
+    <button id="signupBtn" class="btn">Sign up</button>
+    <button id="logoutBtn" class="btn" hidden>Log out</button>
+  </div>
+
+  <dialog id="authDialog">
+    <div class="modal-head">
+      <strong id="authTitle">Create account</strong>
+      <button id="closeAuth" class="btn">✕</button>
+    </div>
+    <form id="authForm" class="modal-body">
+      <div class="field"><label for="username">Username</label><input id="username" name="username" autocomplete="username" required></div>
+      <div class="field"><label for="password">Password</label><input id="password" type="password" name="password" autocomplete="current-password" required minlength="6"></div>
+      <button id="authSubmit" class="btn primary" type="submit">Create account</button>
+      <div class="row"><span id="authSwitchText">Already have an account?</span> <span id="authSwitch" class="link">Log in</span></div>
+      <p id="authErr" style="color:#ffb3b3;min-height:1.2em;margin:0"></p>
+    </form>
+  </dialog>
 
   <div id="feed" class="feed" tabindex="0" aria-label="Vertical video feed (use mouse wheel, trackpad, or ↑/↓)"></div>
   <div class="hint">Tip: ↑ / ↓ to navigate • Click video to play/pause • Tap “Mute” for sound</div>
 
   <script>
-    // If backend is down, we fall back to these
+    // ---- API helper (cookies enabled) ----
+    const api = {
+      async get(path){ const r = await fetch(path, { credentials: 'include' }); return r.json(); },
+      async post(path, data){
+        const r = await fetch(path, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data||{}) });
+        return r.json();
+      }
+    };
+
+    // If backend is down, we fall back
     const FALLBACK_VIDEOS = [
       { id: 1, src: "https://cdn.coverr.co/videos/coverr-man-walking-on-a-suspension-bridge-6468/1080p.mp4", username: "@alpine.explorer", caption: "Crossing the old suspension bridge. Would you? #hike #adventure", music: "Original Sound — alpine", likeCount: 0 },
       { id: 2, src: "https://cdn.coverr.co/videos/coverr-city-street-at-night-6923/1080p.mp4", username: "@nocturne", caption: "Blue hour drives hit different.", music: "City Nights — analogtape", likeCount: 0 },
-      { id: 3, src: "https://cdn.coverr.co/videos/coverr-making-pizza-8157/1080p.mp4", username: "@chefmode", caption: "POV: best pizza of your life 🍕", music: "Neapolitan Vibes — cucina", likeCount: 0 },
-      { id: 4, src: "https://cdn.coverr.co/videos/coverr-surfing-on-the-ocean-9720/1080p.mp4", username: "@surf.check", caption: "Morning glass. Lefts were firing.", music: "Sea Breeze — modular", likeCount: 0 },
-      { id: 5, src: "https://cdn.coverr.co/videos/coverr-writing-in-a-notebook-5691/1080p.mp4", username: "@studylog", caption: "25m deep work, 5m rest. #pomodoro", music: "Lo‑fi Loop — studycat", likeCount: 0 }
+      { id: 3, src: "https://cdn.coverr.co/videos/coverr-making-pizza-8157/1080p.mp4", username: "@chefmode", caption: "POV: best pizza of your life 🍕", music: "Neapolitan Vibes — cucina", likeCount: 0 }
     ];
 
-    async function fetchFeed(){
-      try {
-        const res = await fetch('/api/feed');
-        if (!res.ok) throw new Error('bad status');
-        return await res.json();
-      } catch (e) {
-        console.warn('Backend unavailable, using fallback videos.');
-        return FALLBACK_VIDEOS;
-      }
+    const feed = document.getElementById('feed');
+    const dlg = document.getElementById('authDialog');
+    const userChip = document.getElementById('userChip');
+    const loginBtn = document.getElementById('loginBtn');
+    const signupBtn = document.getElementById('signupBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const authTitle = document.getElementById('authTitle');
+    const authForm = document.getElementById('authForm');
+    const authSubmit = document.getElementById('authSubmit');
+    const authSwitch = document.getElementById('authSwitch');
+    const authSwitchText = document.getElementById('authSwitchText');
+    const authErr = document.getElementById('authErr');
+    const closeAuth = document.getElementById('closeAuth');
+
+    let mode = 'signup'; // or 'login'
+    function setMode(next){
+      mode = next;
+      if (mode==='signup'){ authTitle.textContent='Create account'; authSubmit.textContent='Create account'; authSwitchText.textContent='Already have an account?'; authSwitch.textContent='Log in'; }
+      else { authTitle.textContent='Log in'; authSubmit.textContent='Log in'; authSwitchText.textContent="Don't have an account?"; authSwitch.textContent='Sign up'; }
+      authErr.textContent='';
     }
 
-    const feed = document.getElementById('feed');
+    loginBtn.addEventListener('click', ()=>{ setMode('login'); dlg.showModal(); });
+    signupBtn.addEventListener('click', ()=>{ setMode('signup'); dlg.showModal(); });
+    closeAuth.addEventListener('click', ()=> dlg.close());
+    authSwitch.addEventListener('click', ()=> setMode(mode==='signup'?'login':'signup'));
+
+    async function refreshUser(){
+      try {
+        const me = await api.get('/api/me');
+        if (me && me.username){
+          userChip.textContent = '@'+me.username; userChip.hidden = false; loginBtn.hidden = true; signupBtn.hidden = true; logoutBtn.hidden = false;
+        } else { throw new Error(); }
+      } catch { userChip.hidden = true; loginBtn.hidden = false; signupBtn.hidden = false; logoutBtn.hidden = true; }
+    }
+
+    logoutBtn.addEventListener('click', async ()=>{ await api.post('/api/auth/logout'); await refreshUser(); });
+
+    authForm.addEventListener('submit', async (e)=>{
+      e.preventDefault(); authErr.textContent='';
+      const username = e.target.username.value.trim();
+      const password = e.target.password.value;
+      try{
+        const path = mode==='signup' ? '/api/auth/signup' : '/api/auth/login';
+        const out = await api.post(path, { username, password });
+        if (out.error) { authErr.textContent = out.error; return; }
+        dlg.close(); await refreshUser();
+      } catch(err){ authErr.textContent = 'Network error'; }
+    });
+
+    async function fetchFeed(){
+      try { return await api.get('/api/feed'); }
+      catch { console.warn('Backend unavailable, using fallback'); return FALLBACK_VIDEOS; }
+    }
 
     function reelTemplate(item, idx){
       return `
@@ -95,32 +177,28 @@
     }
 
     async function mount(){
+      await refreshUser();
       const list = await fetchFeed();
       feed.innerHTML = list.map(reelTemplate).join('');
       observeReels();
       feed.focus();
     }
 
+    // Intersection observer
     function reels(){ return Array.from(document.querySelectorAll('.reel')); }
     function playReel(el){ const v = el.querySelector('video'); if (v) v.play().catch(()=>{}); }
     function pauseReel(el){ const v = el.querySelector('video'); if (v) v.pause(); }
-
     function observeReels(){
       const io = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
-          const reel = entry.target;
-          const shimmer = reel.querySelector('.shimmer');
+          const reel = entry.target; const shimmer = reel.querySelector('.shimmer');
           if (entry.isIntersecting && entry.intersectionRatio > 0.7) {
-            playReel(reel);
-            if (shimmer) shimmer.style.display = 'none';
-            const idx = +reel.dataset.idx;
-            [idx+1, idx+2].forEach(i => {
+            playReel(reel); if (shimmer) shimmer.style.display='none';
+            const idx = +reel.dataset.idx; [idx+1, idx+2].forEach(i => {
               const next = document.querySelector(`.reel[data-idx="${i}"] video`);
               if (next && next.preload !== 'auto') next.preload = 'auto';
             });
-          } else {
-            pauseReel(reel);
-          }
+          } else { pauseReel(reel); }
         });
       }, { threshold: [0, .7, 1]});
       reels().forEach(r => io.observe(r));
@@ -128,60 +206,41 @@
 
     // Interactions
     feed.addEventListener('click', (e) => {
-      const reel = e.target.closest('.reel');
-      if (!reel) return;
-      const video = reel.querySelector('video');
-      const isButton = e.target.closest('button');
+      const reel = e.target.closest('.reel'); if (!reel) return;
+      const video = reel.querySelector('video'); const isButton = e.target.closest('button');
       if (!isButton) { if (video.paused) video.play().catch(()=>{}); else video.pause(); }
     });
 
     // Mute toggle
     feed.addEventListener('click', (e) => {
-      const btn = e.target.closest('.mute-pill');
-      if (!btn) return;
-      const reel = btn.closest('.reel');
-      const v = reel.querySelector('video');
-      v.muted = !v.muted; btn.textContent = v.muted ? 'Mute' : 'Sound On';
+      const btn = e.target.closest('.mute-pill'); if (!btn) return;
+      const reel = btn.closest('.reel'); const v = reel.querySelector('video'); v.muted = !v.muted; btn.textContent = v.muted ? 'Mute' : 'Sound On';
     });
 
-    // Like / Comment / Share with backend
+    // Like / Comment / Share with auth guard
+    function requireAuth(){ if (logoutBtn.hidden) { dlg.showModal(); setMode('signup'); return false; } return true; }
+
     feed.addEventListener('click', async (e) => {
-      const like = e.target.closest('.like');
-      const comment = e.target.closest('.comment');
-      const share = e.target.closest('.share');
-      const reel = e.target.closest('.reel');
-      if (!reel) return;
-      const id = reel.dataset.id;
+      const reel = e.target.closest('.reel'); if (!reel) return; const id = reel.dataset.id;
+      const like = e.target.closest('.like'); const comment = e.target.closest('.comment'); const share = e.target.closest('.share');
 
       if (like) {
-        try {
-          const res = await fetch(`/api/videos/${id}/like`, { method: 'POST' });
-          const json = await res.json();
-          reel.querySelector('.likes').textContent = String(json.likeCount ?? (json.likes ?? 0));
-        } catch {
-          const c = reel.querySelector('.likes');
-          c.textContent = String(+c.textContent + 1);
-        }
+        if (!requireAuth()) return;
+        try { const json = await api.post(`/api/videos/${id}/like`); reel.querySelector('.likes').textContent = String(json.likeCount ?? 0); }
+        catch { const c = reel.querySelector('.likes'); c.textContent = String(+c.textContent + 1); }
         like.animate([{transform:'scale(1)'},{transform:'scale(1.25)'},{transform:'scale(1)'}], {duration:180, easing:'ease-out'});
       }
 
       if (comment) {
-        const text = prompt('Add a comment');
-        if (text && text.trim().length) {
-          try {
-            await fetch(`/api/videos/${id}/comments`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text }) });
-            toast('Comment posted');
-          } catch { toast('Offline: comment not saved'); }
-        }
+        if (!requireAuth()) return; const text = prompt('Add a comment'); if (!text) return;
+        try { await api.post(`/api/videos/${id}/comments`, { text }); toast('Comment posted'); }
+        catch { toast('Offline: comment not saved'); }
       }
 
       if (share) {
-        const v = reel.querySelector('video');
-        const url = v.currentSrc || v.src;
-        try {
-          if (navigator.share) await navigator.share({ title: 'Check this video', url });
-          else { await navigator.clipboard.writeText(url); toast('Link copied'); }
-        } catch {}
+        const v = reel.querySelector('video'); const url = v.currentSrc || v.src;
+        try { if (navigator.share) await navigator.share({ title: 'Check this video', url }); else { await navigator.clipboard.writeText(url); toast('Link copied'); } }
+        catch {}
       }
     });
 
@@ -189,41 +248,16 @@
     feed.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); scrollByOne(+1); }
       if (e.key === 'ArrowUp'   || e.key === 'k') { e.preventDefault(); scrollByOne(-1); }
-      if (e.key === 'm') {
-        const current = getCurrentReel();
-        if (current) { const v = current.querySelector('video'); v.muted = !v.muted; current.querySelector('.mute-pill').textContent = v.muted ? 'Mute' : 'Sound On'; }
-      }
+      if (e.key === 'm') { const current = getCurrentReel(); if (current) { const v = current.querySelector('video'); v.muted = !v.muted; current.querySelector('.mute-pill').textContent = v.muted ? 'Mute' : 'Sound On'; } }
     });
 
-    function getCurrentReel(){
-      let best = null, bestRatio = 0;
-      reels().forEach(r => {
-        const rect = r.getBoundingClientRect();
-        const vh = window.innerHeight;
-        const visible = Math.max(0, Math.min(rect.bottom, vh) - Math.max(rect.top, 0));
-        const ratio = visible / vh; if (ratio > bestRatio) { bestRatio = ratio; best = r; }
-      });
-      return best;
-    }
-    function scrollByOne(dir){
-      const current = getCurrentReel(); if (!current) return;
-      const idx = +current.dataset.idx + dir;
-      const next = document.querySelector(`.reel[data-idx="${idx}"]`);
-      if (next) next.scrollIntoView({behavior:'smooth'});
-    }
+    function getCurrentReel(){ let best=null, bestRatio=0; reels().forEach(r=>{ const rect=r.getBoundingClientRect(); const vh=innerHeight; const visible=Math.max(0, Math.min(rect.bottom, vh) - Math.max(rect.top, 0)); const ratio=visible/vh; if (ratio>bestRatio){ bestRatio=ratio; best=r; } }); return best; }
+    function scrollByOne(dir){ const current=getCurrentReel(); if(!current) return; const idx=+current.dataset.idx + dir; const next=document.querySelector(`.reel[data-idx="${idx}"]`); if(next) next.scrollIntoView({behavior:'smooth'}); }
 
     // Toast
-    let toastTimer = null;
-    function toast(msg){
-      let el = document.getElementById('toast');
-      if (!el){ el = Object.assign(document.createElement('div'), { id: 'toast' });
-        el.style.cssText = 'position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.25);padding:10px 14px;border-radius:12px;color:#fff;backdrop-filter:blur(6px);z-index:20;opacity:0;transition:opacity .2s';
-        document.body.appendChild(el); }
-      el.textContent = msg; el.style.opacity = '1'; clearTimeout(toastTimer); toastTimer = setTimeout(()=>{ el.style.opacity = '0'; }, 1200);
-    }
+    let toastTimer=null; function toast(msg){ let el=document.getElementById('toast'); if(!el){ el=Object.assign(document.createElement('div'),{id:'toast'}); el.style.cssText='position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.25);padding:10px 14px;border-radius:12px;color:#fff;backdrop-filter:blur(6px);z-index:20;opacity:0;transition:opacity .2s'; document.body.appendChild(el);} el.textContent=msg; el.style.opacity='1'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>{ el.style.opacity='0'; }, 1200); }
 
-    // Start
-    window.addEventListener('load', mount, { once: true });
+    window.addEventListener('load', ()=>{ mount(); }, { once:true });
   </script>
 </body>
 </html>

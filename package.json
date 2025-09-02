@@ -1,0 +1,24 @@
+{
+  "name": "enterprise-lgrg",
+  "version": "1.0.0",
+  "description": "rohan / lucas",
+  "main": "tiktokbackend.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lgreenwald2027/enterprise-lgrg.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lgreenwald2027/enterprise-lgrg/issues"
+  },
+  "homepage": "https://github.com/lgreenwald2027/enterprise-lgrg#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
+  }
+}

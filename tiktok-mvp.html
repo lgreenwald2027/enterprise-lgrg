@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TikTok‑style Vertical Feed (MVP)</title>
+  <style>
+    /* --- Layout --- */
+    html, body { height: 100%; margin: 0; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; background:#000; color:#fff; overflow: hidden; }
+    .feed { height: 100vh; width: 100vw; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; }
+    .reel { position: relative; height: 100vh; width: 100%; scroll-snap-align: start; display: grid; place-items: center; background:#000; }
+    .reel video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+    /* --- Overlays --- */
+    .overlay { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr auto; align-items: end; padding: 18px; pointer-events: none; }
+    .left { max-width: min(60ch, 70vw); text-shadow: 0 1px 10px rgba(0,0,0,.6); }
+    .username { font-weight: 800; margin: 0 0 6px 0; }
+    .caption { margin: 0 0 8px 0; opacity: .95; }
+    .music { font-size: 14px; opacity: .85; }
+
+    .actions { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 6px; }
+    .btn { pointer-events: auto; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.2); border-radius: 12px; color: #fff; padding: 8px 10px; font-weight: 700; cursor: pointer; backdrop-filter: blur(4px); min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+    .btn.round { border-radius: 999px; }
+    .count { font-size: 12px; opacity: .85; }
+
+    /* --- Top bar (For You only) --- */
+    .topbar { position: fixed; top: 0; inset-inline: 0; height: 56px; display: flex; align-items: center; justify-content: center; z-index: 10; }
+    .seg { padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.2); background:#fff; color:#000; font-weight: 800; }
+
+    /* --- Hints --- */
+    .hint { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #ddd; opacity: .7; }
+
+    /* --- Mute pill --- */
+    .mute-pill { position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.25); border-radius: 999px; padding: 6px 10px; pointer-events: auto; cursor: pointer; font-weight: 700; }
+
+    /* --- Loading shimmer for first paint --- */
+    .shimmer { position:absolute; inset:0; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.08), rgba(255,255,255,0)); background-size: 200% 100%; animation: shine 1.2s linear infinite; }
+    @keyframes shine { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+
+    @media (max-width: 420px) { .left { max-width: 90vw; } }
+  </style>
+</head>
+<body>
+  <div class="topbar" aria-hidden="true"><span class="seg">For You</span></div>
+
+  <div id="feed" class="feed" tabindex="0" aria-label="Vertical video feed (use mouse wheel, trackpad, or ↑/↓)"></div>
+  <div class="hint">Tip: ↑ / ↓ to navigate • Click video to play/pause • Tap “Mute” for sound</div>
+
+  <script>
+    // If backend is down, we fall back to these
+    const FALLBACK_VIDEOS = [
+      { id: 1, src: "https://cdn.coverr.co/videos/coverr-man-walking-on-a-suspension-bridge-6468/1080p.mp4", username: "@alpine.explorer", caption: "Crossing the old suspension bridge. Would you? #hike #adventure", music: "Original Sound — alpine", likeCount: 0 },
+      { id: 2, src: "https://cdn.coverr.co/videos/coverr-city-street-at-night-6923/1080p.mp4", username: "@nocturne", caption: "Blue hour drives hit different.", music: "City Nights — analogtape", likeCount: 0 },
+      { id: 3, src: "https://cdn.coverr.co/videos/coverr-making-pizza-8157/1080p.mp4", username: "@chefmode", caption: "POV: best pizza of your life 🍕", music: "Neapolitan Vibes — cucina", likeCount: 0 },
+      { id: 4, src: "https://cdn.coverr.co/videos/coverr-surfing-on-the-ocean-9720/1080p.mp4", username: "@surf.check", caption: "Morning glass. Lefts were firing.", music: "Sea Breeze — modular", likeCount: 0 },
+      { id: 5, src: "https://cdn.coverr.co/videos/coverr-writing-in-a-notebook-5691/1080p.mp4", username: "@studylog", caption: "25m deep work, 5m rest. #pomodoro", music: "Lo‑fi Loop — studycat", likeCount: 0 }
+    ];
+
+    async function fetchFeed(){
+      try {
+        const res = await fetch('/api/feed');
+        if (!res.ok) throw new Error('bad status');
+        return await res.json();
+      } catch (e) {
+        console.warn('Backend unavailable, using fallback videos.');
+        return FALLBACK_VIDEOS;
+      }
+    }
+
+    const feed = document.getElementById('feed');
+
+    function reelTemplate(item, idx){
+      return `
+        <section class="reel" data-idx="${idx}" data-id="${item.id}">
+          <video preload="metadata" playsinline muted loop webkit-playsinline x5-playsinline src="${item.src}" aria-label="video ${idx+1}"></video>
+          <div class="shimmer" aria-hidden="true"></div>
+
+          <button class="mute-pill" title="Toggle sound">Mute</button>
+
+          <div class="overlay">
+            <div class="left">
+              <p class="username">${item.username}</p>
+              <p class="caption">${item.caption}</p>
+              <p class="music">🎵 ${item.music}</p>
+            </div>
+            <div class="actions">
+              <button class="btn round like" aria-label="Like">❤</button>
+              <div class="count likes" aria-hidden="true">${item.likeCount ?? 0}</div>
+              <button class="btn round comment" aria-label="Comment">💬</button>
+              <button class="btn round share" aria-label="Share">↗</button>
+            </div>
+          </div>
+        </section>`;
+    }
+
+    async function mount(){
+      const list = await fetchFeed();
+      feed.innerHTML = list.map(reelTemplate).join('');
+      observeReels();
+      feed.focus();
+    }
+
+    function reels(){ return Array.from(document.querySelectorAll('.reel')); }
+    function playReel(el){ const v = el.querySelector('video'); if (v) v.play().catch(()=>{}); }
+    function pauseReel(el){ const v = el.querySelector('video'); if (v) v.pause(); }
+
+    function observeReels(){
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          const reel = entry.target;
+          const shimmer = reel.querySelector('.shimmer');
+          if (entry.isIntersecting && entry.intersectionRatio > 0.7) {
+            playReel(reel);
+            if (shimmer) shimmer.style.display = 'none';
+            const idx = +reel.dataset.idx;
+            [idx+1, idx+2].forEach(i => {
+              const next = document.querySelector(`.reel[data-idx="${i}"] video`);
+              if (next && next.preload !== 'auto') next.preload = 'auto';
+            });
+          } else {
+            pauseReel(reel);
+          }
+        });
+      }, { threshold: [0, .7, 1]});
+      reels().forEach(r => io.observe(r));
+    }
+
+    // Interactions
+    feed.addEventListener('click', (e) => {
+      const reel = e.target.closest('.reel');
+      if (!reel) return;
+      const video = reel.querySelector('video');
+      const isButton = e.target.closest('button');
+      if (!isButton) { if (video.paused) video.play().catch(()=>{}); else video.pause(); }
+    });
+
+    // Mute toggle
+    feed.addEventListener('click', (e) => {
+      const btn = e.target.closest('.mute-pill');
+      if (!btn) return;
+      const reel = btn.closest('.reel');
+      const v = reel.querySelector('video');
+      v.muted = !v.muted; btn.textContent = v.muted ? 'Mute' : 'Sound On';
+    });
+
+    // Like / Comment / Share with backend
+    feed.addEventListener('click', async (e) => {
+      const like = e.target.closest('.like');
+      const comment = e.target.closest('.comment');
+      const share = e.target.closest('.share');
+      const reel = e.target.closest('.reel');
+      if (!reel) return;
+      const id = reel.dataset.id;
+
+      if (like) {
+        try {
+          const res = await fetch(`/api/videos/${id}/like`, { method: 'POST' });
+          const json = await res.json();
+          reel.querySelector('.likes').textContent = String(json.likeCount ?? (json.likes ?? 0));
+        } catch {
+          const c = reel.querySelector('.likes');
+          c.textContent = String(+c.textContent + 1);
+        }
+        like.animate([{transform:'scale(1)'},{transform:'scale(1.25)'},{transform:'scale(1)'}], {duration:180, easing:'ease-out'});
+      }
+
+      if (comment) {
+        const text = prompt('Add a comment');
+        if (text && text.trim().length) {
+          try {
+            await fetch(`/api/videos/${id}/comments`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text }) });
+            toast('Comment posted');
+          } catch { toast('Offline: comment not saved'); }
+        }
+      }
+
+      if (share) {
+        const v = reel.querySelector('video');
+        const url = v.currentSrc || v.src;
+        try {
+          if (navigator.share) await navigator.share({ title: 'Check this video', url });
+          else { await navigator.clipboard.writeText(url); toast('Link copied'); }
+        } catch {}
+      }
+    });
+
+    // Keyboard nav
+    feed.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); scrollByOne(+1); }
+      if (e.key === 'ArrowUp'   || e.key === 'k') { e.preventDefault(); scrollByOne(-1); }
+      if (e.key === 'm') {
+        const current = getCurrentReel();
+        if (current) { const v = current.querySelector('video'); v.muted = !v.muted; current.querySelector('.mute-pill').textContent = v.muted ? 'Mute' : 'Sound On'; }
+      }
+    });
+
+    function getCurrentReel(){
+      let best = null, bestRatio = 0;
+      reels().forEach(r => {
+        const rect = r.getBoundingClientRect();
+        const vh = window.innerHeight;
+        const visible = Math.max(0, Math.min(rect.bottom, vh) - Math.max(rect.top, 0));
+        const ratio = visible / vh; if (ratio > bestRatio) { bestRatio = ratio; best = r; }
+      });
+      return best;
+    }
+    function scrollByOne(dir){
+      const current = getCurrentReel(); if (!current) return;
+      const idx = +current.dataset.idx + dir;
+      const next = document.querySelector(`.reel[data-idx="${idx}"]`);
+      if (next) next.scrollIntoView({behavior:'smooth'});
+    }
+
+    // Toast
+    let toastTimer = null;
+    function toast(msg){
+      let el = document.getElementById('toast');
+      if (!el){ el = Object.assign(document.createElement('div'), { id: 'toast' });
+        el.style.cssText = 'position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.25);padding:10px 14px;border-radius:12px;color:#fff;backdrop-filter:blur(6px);z-index:20;opacity:0;transition:opacity .2s';
+        document.body.appendChild(el); }
+      el.textContent = msg; el.style.opacity = '1'; clearTimeout(toastTimer); toastTimer = setTimeout(()=>{ el.style.opacity = '0'; }, 1200);
+    }
+
+    // Start
+    window.addEventListener('load', mount, { once: true });
+  </script>
+</body>
+</html>

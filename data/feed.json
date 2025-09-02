@@ -1,0 +1,49 @@
+{
+  "videos": [
+    {
+      "id": 1,
+      "src": "https://cdn.coverr.co/videos/coverr-man-walking-on-a-suspension-bridge-6468/1080p.mp4",
+      "username": "@alpine.explorer",
+      "caption": "Crossing the old suspension bridge. Would you? #hike #adventure",
+      "music": "Original Sound — alpine",
+      "likeCount": 0,
+      "comments": []
+    },
+    {
+      "id": 2,
+      "src": "https://cdn.coverr.co/videos/coverr-city-street-at-night-6923/1080p.mp4",
+      "username": "@nocturne",
+      "caption": "Blue hour drives hit different.",
+      "music": "City Nights — analogtape",
+      "likeCount": 0,
+      "comments": []
+    },
+    {
+      "id": 3,
+      "src": "https://cdn.coverr.co/videos/coverr-making-pizza-8157/1080p.mp4",
+      "username": "@chefmode",
+      "caption": "POV: best pizza of your life 🍕",
+      "music": "Neapolitan Vibes — cucina",
+      "likeCount": 0,
+      "comments": []
+    },
+    {
+      "id": 4,
+      "src": "https://cdn.coverr.co/videos/coverr-surfing-on-the-ocean-9720/1080p.mp4",
+      "username": "@surf.check",
+      "caption": "Morning glass. Lefts were firing.",
+      "music": "Sea Breeze — modular",
+      "likeCount": 0,
+      "comments": []
+    },
+    {
+      "id": 5,
+      "src": "https://cdn.coverr.co/videos/coverr-writing-in-a-notebook-5691/1080p.mp4",
+      "username": "@studylog",
+      "caption": "25m deep work, 5m rest. #pomodoro",
+      "music": "Lo-fi Loop — studycat",
+      "likeCount": 0,
+      "comments": []
+    }
+  ]
+}

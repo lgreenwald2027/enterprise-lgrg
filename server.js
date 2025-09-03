@@ -401,6 +401,4 @@ app.post("/api/videos/:id/comments", requireAuth, async (req, res) => {
 
 // ---------- Start ----------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server on http://localhost:${PORT} (DDB=${USE_DDB ? "on" : "off"})`);
-});
+app.listen(PORT, () => console.log(`Server on ${PORT}`));

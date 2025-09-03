@@ -1,27 +1,16 @@
 {
-  "name": "enterprise-lgrg",
+  "name": "tiktok-mvp",
   "version": "1.0.0",
-  "description": "rohan / lucas",
-  "main": "tiktokbackend.js",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/lgreenwald2027/enterprise-lgrg.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/lgreenwald2027/enterprise-lgrg/issues"
-  },
-  "homepage": "https://github.com/lgreenwald2027/enterprise-lgrg#readme",
   "dependencies": {
-    "bcrypt": "^6.0.0",
-    "cookie-session": "^2.1.1",
+    "express": "^4.19.2",
     "cors": "^2.8.5",
-    "express": "^5.1.0"
+    "bcrypt": "^5.1.1",
+    "cookie-session": "^2.0.0",
+    "@aws-sdk/client-dynamodb": "^3.635.0",
+    "@aws-sdk/lib-dynamodb": "^3.635.0"
   }
 }

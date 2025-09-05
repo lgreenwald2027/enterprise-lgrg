@@ -1,73 +1,75 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>TikTok MVP</title>
   <style>
-    :root { --bg:#0b0b0b; --fg:#fff; --muted:#bbbbbb; }
+    :root { --bg:#0b0b0b; --fg:#fff; --muted:#bbb; }
     * { box-sizing:border-box; }
-    html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;}
-    a { color: inherit; text-decoration: none; }
+    html,body { height:100%; margin:0; background:var(--bg); color:var(--fg);
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif; }
 
-    /* Header */
-    header { position:fixed; top:0; left:0; right:0; z-index: 20;
-      display:flex; align-items:center; justify-content:space-between;
-      padding: 10px 14px; background:rgba(0,0,0,.35); border-bottom:1px solid rgba(255,255,255,.15); backdrop-filter: blur(6px);
+    /* Header always clickable above everything */
+    header {
+      position:fixed; top:0; left:0; right:0; height:56px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:10px 14px; background:rgba(0,0,0,.35);
+      border-bottom:1px solid rgba(255,255,255,.15); backdrop-filter:blur(6px);
+      z-index:1000; pointer-events:auto;
     }
-    .brand { font-weight:700; letter-spacing:.3px; }
-    .auth { display:flex; gap:8px; align-items:center; }
+    .brand { font-weight:700; letter-spacing:.2px; }
+    .auth { display:flex; align-items:center; gap:8px; pointer-events:auto; }
+    .chip { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18);
+      padding:6px 10px; border-radius:999px; font-size:.9rem; }
 
     /* Buttons / inputs */
-    .btn { padding:8px 12px; border-radius:12px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.05); color:#fff; cursor:pointer; }
-    .btn.primary { background:#fff; color:#000; border-color: transparent; }
-    .btn.ghost { background:transparent; border-color: rgba(255,255,255,.2); }
-    .btn:disabled { opacity:.5; cursor:not-allowed; }
-    input, textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.06); color:#fff; }
+    .btn { padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.25);
+      background:rgba(255,255,255,.06); color:#fff; cursor:pointer; }
+    .btn.primary { background:#fff; color:#000; border-color:transparent; }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    input, textarea { width:100%; padding:10px 12px; border-radius:12px;
+      border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.06); color:#fff; }
     label { font-size:.9rem; opacity:.85; display:block; margin-bottom:6px; }
     .row { display:flex; gap:8px; align-items:center; }
-    .field { display:block; margin:10px 0 14px; }
+    .field { margin:10px 0 14px; }
 
-    /* Feed */
-    main { position:fixed; inset: 56px 0 0 0; /* leave space for header */ }
-    .feed { height:100%; overflow-y:auto; scroll-snap-type:y mandatory; }
-    .card { position:relative; height:100vh; scroll-snap-align:start; display:flex; align-items:center; justify-content:center; border-bottom:1px solid rgba(255,255,255,.06); }
-    video { width:100%; height:100%; object-fit:cover; }
-
-    /* Right-side actions */
-    .actions { position:absolute; right:10px; bottom:90px; display:flex; flex-direction:column; gap:10px; }
-    .chip { background:rgba(0,0,0,.45); padding:8px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.2); }
-    .meta { position:absolute; left:12px; bottom:12px; right:12px; display:flex; flex-direction:column; gap:6px; }
+    /* Content stays under header */
+    main { position:fixed; top:56px; left:0; right:0; bottom:0; overflow:auto; z-index:1; }
+    .placeholder { height:200vh; display:grid; place-items:center; color:var(--muted); }
 
     /* Dialogs */
-    dialog { border:none; border-radius:16px; padding:0; background: rgba(10,10,10,.9); color:#fff; width:min(560px,92vw); }
-    dialog::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
+    dialog { border:none; border-radius:16px; padding:0; background:rgba(10,10,10,.92); color:#fff; width:min(560px,92vw); }
+    dialog::backdrop { background:rgba(0,0,0,.6); z-index:1000; }
     .modal-head { display:flex; align-items:center; justify-content:space-between; padding:14px; border-bottom:1px solid rgba(255,255,255,.15); }
     .modal-body { padding:14px; }
 
-    /* Account Center styles */
+    /* Account Center toggles */
     #courseCatalog { display:flex; flex-wrap:wrap; gap:8px; }
     #courseCatalog .btn[aria-pressed="true"] { background:#fff; color:#000; border-color:transparent; }
     #courseCatalog .btn[aria-pressed="false"] { background: rgba(0,0,0,.35); color:#fff; border-color: rgba(255,255,255,.2); }
 
     /* Toast */
-    #toast { position:fixed; left:50%; bottom:80px; transform:translateX(-50%); background:rgba(0,0,0,.6);
-      border:1px solid rgba(255,255,255,.25); padding:10px 14px; border-radius:12px; color:#fff; backdrop-filter:blur(6px); z-index:50; opacity:0; transition:opacity .25s; }
+    #toast { position:fixed; left:50%; bottom:80px; transform:translateX(-50%);
+      background:rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.25);
+      padding:10px 14px; border-radius:12px; color:#fff; backdrop-filter:blur(6px);
+      z-index:50; opacity:0; transition:opacity .25s; }
   </style>
 </head>
 <body>
   <header>
     <div class="brand">TikTok MVP</div>
-    <div class="auth">
+    <div class="auth" id="authBar">
+      <span id="userChip" class="chip" hidden></span>
       <button id="loginBtn" class="btn">Log in</button>
-      <button id="signupBtn" class="btn ghost">Sign up</button>
+      <button id="signupBtn" class="btn">Sign up</button>
       <button id="acctBtn" class="btn">Account</button>
       <button id="logoutBtn" class="btn" hidden>Log out</button>
     </div>
   </header>
 
   <main>
-    <div id="feed" class="feed"></div>
+    <div class="placeholder">Feed renders here. (Header stays clickable.)</div>
   </main>
 
   <!-- Auth dialog -->
@@ -86,14 +88,14 @@
         <input id="authPassword" type="password" required minlength="6" autocomplete="current-password">
       </div>
       <div class="row">
-        <button class="btn primary" type="submit" id="authSubmit">Continue</button>
+        <button class="btn primary" type="submit">Continue</button>
         <button class="btn" type="button" id="switchMode">Create account</button>
       </div>
       <div id="authMsg" style="color:#ffb3b3; min-height:1.2em; margin-top:6px;"></div>
     </form>
   </dialog>
 
-  <!-- Comments dialog -->
+  <!-- Comments dialog (kept minimal here) -->
   <dialog id="commentsDialog">
     <div class="modal-head">
       <strong>Comments</strong>
@@ -109,7 +111,7 @@
     </div>
   </dialog>
 
-  <!-- Account Center -->
+  <!-- Account Center dialog (FULL) -->
   <dialog id="acctDialog">
     <div class="modal-head">
       <strong>Account Center</strong>
@@ -152,355 +154,240 @@
 
   <div id="toast"></div>
 
-  <script type="module">
-  (() => {
-    // ===== Config =====
-    // EDIT this list to control the catalog shown in the Account Center:
-    const AVAILABLE_COURSES = [
-      "AP Calculus AB",
-      "AP Calculus BC",
-      "AP Biology",
-      "AP Chemistry",
-      "AP Physics 1",
-      "AP Physics 2",
-      "AP Physics C: Mechanics",
-      "AP Physics C: Electricity and Magnetism",
-      "AP Environmental Science",
-      "AP Statistics",
-      "AP Computer Science A",
-      "AP Computer Science Principles",
-      "AP English Language and Composition",
-      "AP English Literature and Composition",
-      "AP U.S. History",
-      "AP World History",
-      "AP European History",
-      "AP Human Geography",
-      "AP Macroeconomics",
-      "AP Microeconomics",
-      "AP Government and Politics: U.S.",
-      "AP Government and Politics: Comparative",
-      "AP Psychology",
-      "AP Art History",
-      "AP Studio Art: 2-D Design",
-      "AP Studio Art: 3-D Design",
-      "AP Studio Art: Drawing",
-      "AP Music Theory",
-      "AP French Language and Culture",
-      "AP Spanish Language and Culture",
-      "AP Spanish Literature and Culture",
-      "AP German Language and Culture",
-      "AP Italian Language and Culture",
-      "AP Chinese Language and Culture",
-      "AP Japanese Language and Culture",
-      "AP Latin",
-      "AP Seminar",
-      "AP Research"
-    ];
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Elements
+      const userChip     = document.getElementById('userChip');
+      const loginBtn     = document.getElementById('loginBtn');
+      const signupBtn    = document.getElementById('signupBtn');
+      const logoutBtn    = document.getElementById('logoutBtn');
+      const acctBtn      = document.getElementById('acctBtn');
 
-    // ===== Helpers =====
-    const $ = (sel, root=document) => root.querySelector(sel);
-    const feedEl = $('#feed');
+      const authDialog   = document.getElementById('authDialog');
+      const authTitle    = document.getElementById('authTitle');
+      const authClose    = document.getElementById('authClose');
+      const authForm     = document.getElementById('authForm');
+      const authUsername = document.getElementById('authUsername');
+      const authPassword = document.getElementById('authPassword');
+      const switchMode   = document.getElementById('switchMode');
+      const authMsg      = document.getElementById('authMsg');
+      let authMode = 'login';
 
-    const loginBtn = $('#loginBtn');
-    const signupBtn = $('#signupBtn');
-    const logoutBtn = $('#logoutBtn');
-    const acctBtn = $('#acctBtn');
+      const acctDialog   = document.getElementById('acctDialog');
+      const closeAcct    = document.getElementById('closeAcct');
+      const acctUsername = document.getElementById('acctUsername');
+      const acctChangePwBtn = document.getElementById('acctChangePwBtn');
+      const acctPwForm   = document.getElementById('acctPwForm');
+      const pwOld        = document.getElementById('pwOld');
+      const pwNew        = document.getElementById('pwNew');
+      const pwMsg        = document.getElementById('pwMsg');
+      const pwCancel     = document.getElementById('pwCancel');
+      const courseList   = document.getElementById('courseList');
+      const courseCatalog= document.getElementById('courseCatalog');
+      const courseMsg    = document.getElementById('courseMsg');
+      const toastEl      = document.getElementById('toast');
 
-    const authDialog = $('#authDialog');
-    const authTitle = $('#authTitle');
-    const authClose = $('#authClose');
-    const authForm = $('#authForm');
-    const authUsername = $('#authUsername');
-    const authPassword = $('#authPassword');
-    const authSubmit  = $('#authSubmit');
-    const switchMode  = $('#switchMode');
-    const authMsg = $('#authMsg');
-    let authMode = 'login'; // 'login' | 'signup'
+      function toast(msg){ toastEl.textContent = msg; toastEl.style.opacity='1'; setTimeout(()=> toastEl.style.opacity='0', 1400); }
 
-    const commentsDialog = $('#commentsDialog');
-    const commentsClose = $('#commentsClose');
-    const commentsList = $('#commentsList');
-    const commentForm = $('#commentForm');
-    const commentInput = $('#commentInput');
-    const commentsMsg = $('#commentsMsg');
-    let activeVideoId = null;
+      const api = {
+        async get(p){ const r = await fetch(p, { credentials:'include' }); if(!r.ok) throw new Error(await r.text()); return r.json(); },
+        async post(p,d){ const r = await fetch(p, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(d||{}), credentials:'include' }); const j = await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||r.statusText); return j; }
+      };
 
-    const acctDialog = $('#acctDialog');
-    const closeAcct = $('#closeAcct');
-    const acctUsername = $('#acctUsername');
-    const acctChangePwBtn = $('#acctChangePwBtn');
-    const acctPwForm = $('#acctPwForm');
-    const pwOld = $('#pwOld');
-    const pwNew = $('#pwNew');
-    const pwMsg = $('#pwMsg');
-    const pwCancel = $('#pwCancel');
-    const courseList = $('#courseList');
-    const courseCatalog = $('#courseCatalog');
-    const courseMsg = $('#courseMsg');
-
-    function toast(msg) {
-      const el = $('#toast');
-      el.textContent = msg; el.style.opacity = '1';
-      setTimeout(()=> el.style.opacity = '0', 1400);
-    }
-
-    const api = {
-      async get(p){ const r = await fetch(p, { credentials:'include' }); if(!r.ok) throw new Error(await r.text()); return r.json(); },
-      async post(p,d){ const r = await fetch(p, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(d||{}), credentials:'include' }); const j = await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error || r.statusText); return j; }
-    };
-
-    // ===== Auth UI =====
-    function setMode(m) {
-      authMode = m;
-      authTitle.textContent = m === 'login' ? 'Log in' : 'Create account';
-      switchMode.textContent = m === 'login' ? 'Create account' : 'I already have an account';
-      authMsg.textContent = '';
-      authUsername.value = ''; authPassword.value = '';
-    }
-    loginBtn.addEventListener('click', () => { setMode('login'); authDialog.showModal(); });
-    signupBtn.addEventListener('click', () => { setMode('signup'); authDialog.showModal(); });
-    authClose.addEventListener('click', () => authDialog.close());
-    switchMode.addEventListener('click', () => setMode(authMode === 'login' ? 'signup' : 'login'));
-
-    authForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      authMsg.textContent = '';
-      const username = authUsername.value.trim();
-      const password = authPassword.value;
-      if (!username || password.length < 6) { authMsg.textContent = 'Enter a valid username and password.'; return; }
-      try {
-        if (authMode === 'login') {
-          await api.post('/api/auth/login', { username, password });
-          toast('Logged in'); authDialog.close(); onAuthChanged();
-        } else {
-          const res = await api.post('/api/auth/signup', { username, password });
-          toast('Account created'); authDialog.close(); onAuthChanged();
-        }
-      } catch (err) {
-        authMsg.textContent = (err.message || 'Auth failed').replace(/["{}]/g,'');
+      // Auth
+      function setMode(m){
+        authMode = m;
+        authTitle.textContent = m === 'login' ? 'Log in' : 'Create account';
+        switchMode.textContent = m === 'login' ? 'Create account' : 'I already have an account';
+        authMsg.textContent=''; authUsername.value=''; authPassword.value='';
       }
-    });
+      loginBtn.addEventListener('click', () => { setMode('login'); authDialog.showModal(); authUsername.focus(); });
+      signupBtn.addEventListener('click', () => { setMode('signup'); authDialog.showModal(); authUsername.focus(); });
+      authClose.addEventListener('click', () => authDialog.close());
+      switchMode.addEventListener('click', () => setMode(authMode === 'login' ? 'signup' : 'login'));
 
-    logoutBtn.addEventListener('click', async () => {
-      try { await api.post('/api/auth/logout'); toast('Logged out'); } catch {}
-      onAuthChanged();
-    });
+      authForm.addEventListener('submit', async (e)=>{
+        e.preventDefault(); authMsg.textContent='';
+        const username = authUsername.value.trim(); const password = authPassword.value;
+        if (!username || password.length < 6){ authMsg.textContent='Enter a valid username & password.'; return; }
+        try {
+          if (authMode === 'login') await api.post('/api/auth/login', { username, password });
+          else await api.post('/api/auth/signup', { username, password });
+          authDialog.close(); onAuthChanged(); toast('Success');
+        } catch (err) { authMsg.textContent = (err.message || 'Auth failed').replace(/["{}]/g,''); }
+      });
 
-    async function onAuthChanged(){
-      try {
-        const me = await api.get('/api/me');
-        if (me.username){
-          loginBtn.hidden = true; signupBtn.hidden = true; logoutBtn.hidden = false;
-        } else {
+      logoutBtn.addEventListener('click', async ()=>{ try{ await api.post('/api/auth/logout'); }catch{} onAuthChanged(); });
+
+      async function onAuthChanged(){
+        try {
+          const me = await api.get('/api/me');
+          if (me.username){
+            userChip.hidden = false; userChip.textContent = `@${me.username}`;
+            loginBtn.hidden = true; signupBtn.hidden = true; logoutBtn.hidden = false;
+          } else {
+            userChip.hidden = true; userChip.textContent = '';
+            loginBtn.hidden = false; signupBtn.hidden = false; logoutBtn.hidden = true;
+          }
+        } catch {
+          // Mock user for testing if backend is unavailable (uncomment for testing)
+          // const me = { username: 'testuser' };
+          // userChip.hidden = false; userChip.textContent = `@${me.username}`;
+          // loginBtn.hidden = true; signupBtn.hidden = true; logoutBtn.hidden = false;
+          userChip.hidden = true; userChip.textContent = '';
           loginBtn.hidden = false; signupBtn.hidden = false; logoutBtn.hidden = true;
         }
-      } catch {
-        loginBtn.hidden = false; signupBtn.hidden = false; logoutBtn.hidden = true;
       }
-    }
 
-    // ===== Account Center =====
-    acctBtn.addEventListener('click', async () => {
-      // require auth
-      const me = await api.get('/api/me').catch(()=> ({}));
-      if (!me.username){ setMode('signup'); authDialog.showModal(); return; }
-      acctUsername.value = me.username;
-      await loadCourses();
-      acctDialog.showModal();
-    });
-    closeAcct.addEventListener('click', ()=> acctDialog.close());
-
-    async function loadCourses(){
-      courseMsg.textContent = '';
-      try {
-        const res = await fetch('/api/account/courses', { credentials:'include' });
-        if (!res.ok) throw new Error('bad');
-        const out = await res.json();
-        renderCourses(out.courses || []);
-      } catch {
-        renderCourses([]);
-        courseMsg.textContent = 'Courses unavailable (backend not implemented or 401).';
-      }
-    }
-
-    function renderCourses(selected){
-      // current selections
-      courseList.innerHTML = '';
-      (selected || []).forEach(name => {
-        const li = document.createElement('li');
-        li.className = 'row';
-        const span = document.createElement('span'); span.textContent = name; span.style.flex='1';
-        const del = document.createElement('button'); del.className='btn'; del.textContent='Remove';
-        del.addEventListener('click', async ()=>{
-          try{
-            const r = await fetch('/api/account/courses', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
-            if (!r.ok) throw new Error();
-            await loadCourses();
-          } catch { courseMsg.textContent = 'Failed to remove course.'; }
-        });
-        li.append(span, del); courseList.append(li);
+      // Account Center — CLICK HANDLER
+      acctBtn.addEventListener('click', async () => {
+        try {
+          const me = await api.get('/api/me');
+          if (!me.username) {
+            setMode('signup');
+            authDialog.showModal();
+            authUsername.focus();
+            toast('Please log in or sign up to access Account Center');
+            return;
+          }
+          acctUsername.value = me.username;
+          await loadCourses();
+          acctDialog.showModal();
+          acctUsername.focus();
+        } catch (err) {
+          console.error('Failed to fetch user data:', err);
+          setMode('signup');
+          authDialog.showModal();
+          authUsername.focus();
+          toast('Unable to load account data. Please try again.');
+        }
       });
 
-      // catalog toggles
-      renderCourseCatalog(selected || []);
-    }
+      // Debug: Verify button exists and is clickable
+      console.log('[acct] acctBtn =', acctBtn);
+      const r = acctBtn.getBoundingClientRect();
+      const topEl = document.elementFromPoint(
+        Math.floor((r.left + r.right) / 2),
+        Math.floor((r.top + r.bottom) / 2)
+      );
+      console.log('[acct] element at button center =', topEl, 'is acctBtn?', topEl === acctBtn);
 
-    function renderCourseCatalog(selected){
-      courseCatalog.innerHTML = '';
-      const set = new Set(selected);
-      AVAILABLE_COURSES.forEach(name => {
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.textContent = name;
-        const on = set.has(name);
-        btn.setAttribute('aria-pressed', on ? 'true':'false');
-        styleToggle(btn, on);
-        btn.addEventListener('click', async ()=>{
-          const pressed = btn.getAttribute('aria-pressed') === 'true';
-          try{
-            if (!pressed) {
-              const r = await fetch('/api/account/courses', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
-              if (!r.ok) throw new Error();
-            } else {
+      closeAcct.addEventListener('click', () => acctDialog.close());
+
+      // Password change flow
+      acctChangePwBtn.addEventListener('click', ()=>{ acctPwForm.style.display='grid'; pwMsg.textContent=''; pwOld.value=''; pwNew.value=''; });
+      pwCancel.addEventListener('click', ()=>{ acctPwForm.style.display='none'; pwMsg.textContent=''; });
+      acctPwForm.addEventListener('submit', async (e)=>{
+        e.preventDefault(); pwMsg.textContent='';
+        try{
+          const r = await fetch('/api/account/password', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ oldPassword: pwOld.value, newPassword: pwNew.value }) });
+          const out = await r.json().catch(()=>({}));
+          if (!r.ok) { pwMsg.textContent = out.error || 'Failed to change password'; return; }
+          acctPwForm.style.display='none'; toast('Password updated');
+        } catch { pwMsg.textContent = 'Network error'; }
+      });
+
+      // Courses
+      const AVAILABLE_COURSES = [
+        "AP Calculus AB",
+        "AP Calculus BC",
+        "AP Biology",
+        "AP Chemistry",
+        "AP Physics 1",
+        "AP Physics 2",
+        "AP Physics C: Mechanics",
+        "AP Physics C: Electricity and Magnetism",
+        "AP Environmental Science",
+        "AP Statistics",
+        "AP Computer Science A",
+        "AP Computer Science Principles",
+        "AP English Language and Composition",
+        "AP English Literature and Composition",
+        "AP U.S. History",
+        "AP World History",
+        "AP European History",
+        "AP Human Geography",
+        "AP Macroeconomics",
+        "AP Microeconomics",
+        "AP Government and Politics: U.S.",
+        "AP Government and Politics: Comparative",
+        "AP Psychology",
+        "AP Art History",
+        "AP Studio Art: 2-D Design",
+        "AP Studio Art: 3-D Design",
+        "AP Studio Art: Drawing",
+        "AP Music Theory",
+        "AP French Language and Culture",
+        "AP Spanish Language and Culture",
+        "AP Spanish Literature and Culture",
+        "AP German Language and Culture",
+        "AP Italian Language and Culture",
+        "AP Chinese Language and Culture",
+        "AP Japanese Language and Culture",
+        "AP Latin",
+        "AP Seminar",
+        "AP Research"
+      ];
+      async function loadCourses(){
+        courseMsg.textContent = '';
+        try {
+          const res = await fetch('/api/account/courses', { credentials:'include' });
+          if (!res.ok) throw new Error();
+          const out = await res.json();
+          renderCourses(out.courses || []);
+        } catch {
+          renderCourses([]); courseMsg.textContent = 'Courses unavailable (backend not implemented or 401).';
+        }
+      }
+
+      function renderCourses(selected){
+        // current selections
+        courseList.innerHTML = '';
+        (selected || []).forEach(name => {
+          const li = document.createElement('li'); li.className = 'row';
+          const span = document.createElement('span'); span.textContent = name; span.style.flex='1';
+          const del = document.createElement('button'); del.className='btn'; del.textContent='Remove';
+          del.addEventListener('click', async ()=>{
+            try{
               const r = await fetch('/api/account/courses', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
               if (!r.ok) throw new Error();
-            }
-            await loadCourses();
-          } catch { courseMsg.textContent = 'Update failed. Check network/backend.'; }
+              await loadCourses();
+            } catch { courseMsg.textContent = 'Failed to remove course.'; }
+          });
+          li.append(span, del); courseList.append(li);
         });
-        courseCatalog.append(btn);
-      });
-    }
-    function styleToggle(el, on){
-      el.setAttribute('aria-pressed', on ? 'true' : 'false');
-      // visual styles are in CSS via [aria-pressed]
-    }
-
-    // Password change
-    acctChangePwBtn.addEventListener('click', ()=>{ acctPwForm.style.display='grid'; pwMsg.textContent=''; pwOld.value=''; pwNew.value=''; });
-    pwCancel.addEventListener('click', ()=>{ acctPwForm.style.display='none'; pwMsg.textContent=''; });
-    acctPwForm.addEventListener('submit', async (e)=>{
-      e.preventDefault(); pwMsg.textContent='';
-      try{
-        const r = await fetch('/api/account/password', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ oldPassword: pwOld.value, newPassword: pwNew.value }) });
-        const out = await r.json().catch(()=>({}));
-        if (!r.ok) { pwMsg.textContent = out.error || 'Failed to change password'; return; }
-        acctPwForm.style.display='none'; toast('Password updated');
-      } catch { pwMsg.textContent = 'Network error'; }
-    });
-
-    // ===== Feed =====
-    async function fetchFeed(){
-      try {
-        const res = await fetch('/api/feed', { credentials:'include' });
-        if (!res.ok) throw new Error('bad status ' + res.status);
-        return await res.json();
-      } catch (e) {
-        console.warn('Feed unavailable', e);
-        return []; // no fallback in DDB mode
+        renderCourseCatalog(selected || []);
       }
-    }
 
-    function renderFeed(items){
-      feedEl.innerHTML = '';
-      items.forEach(v => {
-        const card = document.createElement('section');
-        card.className = 'card';
-        card.dataset.id = v.id;
-
-        const vid = document.createElement('video');
-        vid.src = v.src; vid.playsInline = true; vid.loop = true; vid.muted = true; vid.preload = 'metadata';
-        card.appendChild(vid);
-
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        const likeBtn = document.createElement('button'); likeBtn.className = 'btn'; likeBtn.textContent = `♥ ${v.likeCount ?? 0}`;
-        const commentBtn = document.createElement('button'); commentBtn.className = 'btn'; commentBtn.textContent = `💬 ${v.commentCount ?? 0}`;
-        actions.append(likeBtn, commentBtn);
-        card.appendChild(actions);
-
-        const meta = document.createElement('div');
-        meta.className = 'meta';
-        const user = document.createElement('div'); user.className = 'chip'; user.textContent = v.username || '@user';
-        const cap  = document.createElement('div'); cap.className = 'chip'; cap.textContent = v.caption || '';
-        const music = document.createElement('div'); music.className='chip'; music.textContent = v.music || '';
-        meta.append(user, cap, music);
-        card.appendChild(meta);
-
-        // Like handler (requires auth)
-        likeBtn.addEventListener('click', async ()=>{
-          const me = await api.get('/api/me').catch(()=> ({}));
-          if (!me.username){ setMode('signup'); authDialog.showModal(); return; }
-          try {
-            const res = await api.post(`/api/videos/${v.id}/like`);
-            likeBtn.textContent = `♥ ${res.likeCount ?? v.likeCount ?? 0}`;
-          } catch { toast('Like failed'); }
+      function renderCourseCatalog(selected){
+        courseCatalog.innerHTML = '';
+        const set = new Set(selected);
+        AVAILABLE_COURSES.forEach(name => {
+          const btn = document.createElement('button');
+          btn.className = 'btn';
+          btn.textContent = name;
+          const on = set.has(name);
+          btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+          btn.addEventListener('click', async ()=>{
+            const pressed = btn.getAttribute('aria-pressed') === 'true';
+            try{
+              if (!pressed) {
+                const r = await fetch('/api/account/courses', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
+                if (!r.ok) throw new Error();
+              } else {
+                const r = await fetch('/api/account/courses', { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
+                if (!r.ok) throw new Error();
+              }
+              await loadCourses();
+            } catch { courseMsg.textContent = 'Update failed. Check network/backend.'; }
+          });
+          courseCatalog.append(btn);
         });
+      }
 
-        // Comments handler
-        commentBtn.addEventListener('click', async ()=>{
-          activeVideoId = v.id;
-          await openComments(v.id);
-        });
-
-        feedEl.appendChild(card);
-      });
-
-      // Auto-play observer
-      const io = new IntersectionObserver((entries)=>{
-        entries.forEach(e=>{
-          const video = e.target.querySelector('video');
-          if (!video) return;
-          if (e.isIntersecting && e.intersectionRatio > 0.6) {
-            video.play().catch(()=>{});
-          } else {
-            video.pause();
-          }
-        });
-      }, { threshold:[0, .6, 1] });
-
-      document.querySelectorAll('.card').forEach(c => io.observe(c));
-    }
-
-    async function openComments(id){
-      commentsMsg.textContent = '';
-      commentsList.innerHTML = '';
-      try {
-        const res = await fetch(`/api/videos/${id}/comments`, { credentials:'include' });
-        if (!res.ok) throw new Error();
-        const out = await res.json();
-        (out.comments || []).forEach(c=>{
-          const row = document.createElement('div');
-          row.className = 'chip';
-          row.textContent = `${c.user}: ${c.text}`;
-          commentsList.appendChild(row);
-        });
-      } catch { commentsMsg.textContent = 'Failed to load comments.'; }
-      commentsDialog.showModal();
-    }
-
-    commentsClose.addEventListener('click', ()=> commentsDialog.close());
-    commentForm.addEventListener('submit', async (e)=>{
-      e.preventDefault(); commentsMsg.textContent = '';
-      const text = commentInput.value.trim(); if (!text) return;
-      const me = await api.get('/api/me').catch(()=> ({}));
-      if (!me.username){ setMode('signup'); authDialog.showModal(); return; }
-      try{
-        const r = await fetch(`/api/videos/${activeVideoId}/comments`, {
-          method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text })
-        });
-        if (!r.ok) throw new Error();
-        commentInput.value = ''; await openComments(activeVideoId);
-      } catch { commentsMsg.textContent = 'Failed to post comment.'; }
+      // Init
+      onAuthChanged();
     });
-
-    // ===== Init =====
-    (async function init(){
-      await onAuthChanged();
-      const items = await fetchFeed();
-      renderFeed(items);
-    })();
-  })();
   </script>
 </body>
 </html>

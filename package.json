@@ -1,9 +1,15 @@
 {
-  "name": "tiktok-mvp",
+  "name": "rglg",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+  "dev": "AWS_REGION=us-east-2 USERS_TABLE=tiktok_users VIDEOS_TABLE=tiktok_videos SESSION_SECRET=$(node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\") SESSION_SECURE=false node server.js",
+  "start": "node server.js"
+  },
+
+  "engines": {
+    "node": "22.19.0",
+    "npm": "10.x"
   },
   "dependencies": {
     "express": "^4.19.2",
@@ -13,4 +19,7 @@
     "@aws-sdk/client-dynamodb": "^3.635.0",
     "@aws-sdk/lib-dynamodb": "^3.635.0"
   }
+
+  
+  
 }

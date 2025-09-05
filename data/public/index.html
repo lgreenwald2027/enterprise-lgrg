@@ -36,7 +36,47 @@
 
     /* Content stays under header */
     main { position:fixed; top:56px; left:0; right:0; bottom:0; overflow:auto; z-index:1; }
-    .placeholder { height:200vh; display:grid; place-items:center; color:var(--muted); }
+
+    /* Feed */
+    #feed {
+      position:relative;
+      height:100%;
+      overflow:auto;
+      scroll-snap-type:y mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+    .card {
+      position:relative;
+      height:calc(100vh - 56px);
+      width:100%;
+      display:block;
+      scroll-snap-align:start;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background:#000;
+    }
+    .vid {
+      position:absolute; inset:0;
+      width:100%; height:100%;
+      object-fit:cover; object-position:center;
+      background:#000;
+    }
+    .overlay {
+      position:absolute; left:0; right:0; bottom:0;
+      padding:16px 14px 18px;
+      background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.4) 20%, rgba(0,0,0,.7) 70%);
+      color:#fff; display:flex; gap:12px; align-items:flex-end;
+    }
+    .meta { flex:1; min-width:0; }
+    .user { font-weight:700; margin-bottom:4px; opacity:.95; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .title { font-size:1.05rem; line-height:1.25; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .caption { color:#ddd; opacity:.9; font-size:.95rem; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .shadowed { text-shadow: 0 1px 2px rgba(0,0,0,.8), 0 2px 12px rgba(0,0,0,.6); }
+
+    .side {
+      display:grid; gap:10px; justify-items:center; margin:0 8px 8px 0;
+    }
+    .side button { width:44px; height:44px; border-radius:999px; border:1px solid rgba(255,255,255,.25);
+      background:rgba(255,255,255,.08); color:#fff; }
 
     /* Dialogs */
     dialog { border:none; border-radius:16px; padding:0; background:rgba(10,10,10,.92); color:#fff; width:min(560px,92vw); }
@@ -69,7 +109,8 @@
   </header>
 
   <main>
-    <div class="placeholder">Feed renders here. (Header stays clickable.)</div>
+    <!-- FEED -->
+    <div id="feed" aria-live="polite"></div>
   </main>
 
   <!-- Auth dialog -->
@@ -186,6 +227,7 @@
       const courseCatalog= document.getElementById('courseCatalog');
       const courseMsg    = document.getElementById('courseMsg');
       const toastEl      = document.getElementById('toast');
+      const feedEl       = document.getElementById('feed');
 
       function toast(msg){ toastEl.textContent = msg; toastEl.style.opacity='1'; setTimeout(()=> toastEl.style.opacity='0', 1400); }
 
@@ -194,7 +236,71 @@
         async post(p,d){ const r = await fetch(p, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(d||{}), credentials:'include' }); const j = await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||r.statusText); return j; }
       };
 
-      // Auth
+      // ==== FEED ====
+      async function fetchFeed() {
+        try {
+          // Adjust endpoint to your server route if needed
+          const data = await api.get('/api/feed');
+          if (!Array.isArray(data) || !data.length) throw new Error('empty');
+          return data;
+        } catch (e) {
+          // Fallback demo data (only if API fails)
+          console.warn('Feed API unavailable, loading examples:', e.message || e);
+          return [
+            { id:'demo1', url:'/videos/demo1.mp4', title:'Demo video 1', caption:'This is a sample caption so you can see layout.', username:'demo_user' },
+            { id:'demo2', url:'/videos/demo2.mp4', title:'Demo video 2', caption:'Replace with your real feed data.', username:'another_user' },
+          ];
+        }
+      }
+
+      function videoCard(item){
+        const card = document.createElement('section'); card.className = 'card'; card.dataset.id = item.id || '';
+        const vid = document.createElement('video');
+        vid.className = 'vid';
+        vid.src = item.url || item.videoUrl || item.src || '';
+        vid.playsInline = true; vid.muted = true; vid.loop = true; vid.preload = 'metadata';
+        vid.setAttribute('webkit-playsinline','');
+
+        const overlay = document.createElement('div'); overlay.className = 'overlay';
+        const meta = document.createElement('div'); meta.className = 'meta';
+        const user = document.createElement('div'); user.className = 'user shadowed';
+        user.textContent = item.username ? `@${item.username}` : '@unknown';
+        const title = document.createElement('div'); title.className = 'title shadowed';
+        title.textContent = item.title || 'Untitled';
+        const caption = document.createElement('div'); caption.className = 'caption shadowed';
+        caption.textContent = item.caption || '';
+
+        meta.append(user, title, caption);
+
+        const side = document.createElement('div'); side.className = 'side';
+        side.style.marginLeft = '8px';
+        const like = document.createElement('button'); like.className = 'btn'; like.textContent = '♥';
+        const comment = document.createElement('button'); comment.className = 'btn'; comment.textContent = '💬';
+        side.append(like, comment);
+
+        overlay.append(meta, side);
+        card.append(vid, overlay);
+        return card;
+      }
+
+      function renderFeed(items){
+        feedEl.innerHTML = '';
+        items.forEach(item => feedEl.append(videoCard(item)));
+
+        // Auto play/pause as you scroll
+        const opts = { root: feedEl, threshold: 0.6 };
+        const io = new IntersectionObserver(entries => {
+          entries.forEach(e => {
+            const v = e.target.querySelector('video');
+            if (!v) return;
+            if (e.isIntersecting) { v.play().catch(()=>{}); }
+            else { v.pause(); }
+          });
+        }, opts);
+        [...feedEl.children].forEach(card => io.observe(card));
+      }
+
+      // ==== AUTH ====
       function setMode(m){
         authMode = m;
         authTitle.textContent = m === 'login' ? 'Log in' : 'Create account';
@@ -230,10 +336,6 @@
             loginBtn.hidden = false; signupBtn.hidden = false; logoutBtn.hidden = true;
           }
         } catch {
-          // Mock user for testing if backend is unavailable (uncomment for testing)
-          // const me = { username: 'testuser' };
-          // userChip.hidden = false; userChip.textContent = `@${me.username}`;
-          // loginBtn.hidden = true; signupBtn.hidden = true; logoutBtn.hidden = false;
           userChip.hidden = true; userChip.textContent = '';
           loginBtn.hidden = false; signupBtn.hidden = false; logoutBtn.hidden = true;
         }
@@ -289,44 +391,16 @@
 
       // Courses
       const AVAILABLE_COURSES = [
-        "AP Calculus AB",
-        "AP Calculus BC",
-        "AP Biology",
-        "AP Chemistry",
-        "AP Physics 1",
-        "AP Physics 2",
-        "AP Physics C: Mechanics",
-        "AP Physics C: Electricity and Magnetism",
-        "AP Environmental Science",
-        "AP Statistics",
-        "AP Computer Science A",
-        "AP Computer Science Principles",
-        "AP English Language and Composition",
-        "AP English Literature and Composition",
-        "AP U.S. History",
-        "AP World History",
-        "AP European History",
-        "AP Human Geography",
-        "AP Macroeconomics",
-        "AP Microeconomics",
-        "AP Government and Politics: U.S.",
-        "AP Government and Politics: Comparative",
-        "AP Psychology",
-        "AP Art History",
-        "AP Studio Art: 2-D Design",
-        "AP Studio Art: 3-D Design",
-        "AP Studio Art: Drawing",
-        "AP Music Theory",
-        "AP French Language and Culture",
-        "AP Spanish Language and Culture",
-        "AP Spanish Literature and Culture",
-        "AP German Language and Culture",
-        "AP Italian Language and Culture",
-        "AP Chinese Language and Culture",
-        "AP Japanese Language and Culture",
-        "AP Latin",
-        "AP Seminar",
-        "AP Research"
+        "AP Calculus AB","AP Calculus BC","AP Biology","AP Chemistry","AP Physics 1","AP Physics 2",
+        "AP Physics C: Mechanics","AP Physics C: Electricity and Magnetism","AP Environmental Science","AP Statistics",
+        "AP Computer Science A","AP Computer Science Principles","AP English Language and Composition",
+        "AP English Literature and Composition","AP U.S. History","AP World History","AP European History",
+        "AP Human Geography","AP Macroeconomics","AP Microeconomics","AP Government and Politics: U.S.",
+        "AP Government and Politics: Comparative","AP Psychology","AP Art History","AP Studio Art: 2-D Design",
+        "AP Studio Art: 3-D Design","AP Studio Art: Drawing","AP Music Theory","AP French Language and Culture",
+        "AP Spanish Language and Culture","AP Spanish Literature and Culture","AP German Language and Culture",
+        "AP Italian Language and Culture","AP Chinese Language and Culture","AP Japanese Language and Culture",
+        "AP Latin","AP Seminar","AP Research"
       ];
       async function loadCourses(){
         courseMsg.textContent = '';
@@ -386,7 +460,11 @@
       }
 
       // Init
-      onAuthChanged();
+      (async () => {
+        onAuthChanged();
+        const items = await fetchFeed();
+        renderFeed(items);
+      })();
     });
   </script>
 </body>
